@@ -609,3 +609,68 @@ def generate_embeddings(
         ):
             feat = analysis.analyze(input_file)
             feat.save(output_file)
+
+    elif model_name == "mfcc":
+        import librosa
+
+        # Define the target length for the frames (time dimension)
+        target_length = 500  # This is already correctly set according to the model
+
+        # Total number of features (MFCCs + deltas + delta-deltas) should be 39
+        num_mfcc = 13  # Number of MFCCs extracted
+        total_features = num_mfcc * 3  # MFCCs + deltas + delta-deltas = 39
+
+        # Get input (audio) and output (embedding) paths
+        audio_paths, emb_paths = get_input_output_paths(
+            dataset=dataset,
+            model_name=model_name,
+            skip_clean=skip_clean,
+            skip_deformed=skip_deformed,
+            no_overwrite=no_overwrite,
+            deform_list=deform_list,
+        )
+
+        # Iterate over the audio file paths
+        for input_path, output_path in tqdm(
+            zip(audio_paths, emb_paths), total=len(audio_paths)
+        ):
+            try:
+                # Load the audio file
+                audio, sr = librosa.load(input_path, sr=22050)
+
+                # Extract MFCCs (13 MFCCs)
+                mfccs = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=num_mfcc)
+
+                # Extract deltas and delta-deltas (first and second derivatives)
+                mfccs_delta = librosa.feature.delta(mfccs)
+                mfccs_delta2 = librosa.feature.delta(mfccs, order=2)
+
+                # Combine MFCCs, deltas, and delta-deltas (39 features)
+                features = np.vstack([mfccs, mfccs_delta, mfccs_delta2])
+
+                # Standardize the MFCC length to be 500 frames
+                current_length = features.shape[1]
+                if current_length < target_length:
+                    # Padding: add zeros until reaching the target length
+                    features = np.pad(features, ((0, 0), (0, target_length - current_length)), mode='constant')
+                elif current_length > target_length:
+                    # Truncation: cut off excess frames
+                    features = features[:, :target_length]
+
+                # Ensure the final dimensions are correct (39, 500)
+                assert features.shape == (total_features, target_length), f"Incorrect shape: {features.shape}, expected: {(total_features, target_length)}"
+
+                # Check if the output directory exists; if not, create it
+                if not os.path.exists(os.path.dirname(output_path)):
+                    os.makedirs(os.path.dirname(output_path))
+
+                # Save the scaled features in .npy format as a flattened array to simplify
+                with open(output_path, "wb") as f:
+                    np.save(f, features.flatten())
+
+            except Exception as e:
+                print(f"Error processing file {input_path}: {e}")
+                continue
+
+
+
