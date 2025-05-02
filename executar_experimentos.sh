@@ -2,7 +2,7 @@
 
 CONFIG_DIR="configs"
 BASE_LOG_DIR="results_mfcc_evaluate"
-REPETITIONS=5
+REPETITIONS=10
 
 # Lista de valores para MAX_FRAMES
 FRAME_VALUES=(1 2 4 5 7 10 15 20 25 30 40 50 100 150 250 350 500)
