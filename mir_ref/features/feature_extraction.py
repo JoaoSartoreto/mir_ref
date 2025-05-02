@@ -12,6 +12,7 @@ import numpy as np
 from tqdm import tqdm
 
 
+
 def check_model_exists(model_path: str):
     if not os.path.exists(model_path):
         raise Exception(
@@ -147,6 +148,7 @@ def compute_and_save_embeddings(
 def generate_embeddings(
     dataset,
     model_name: str,
+    config,
     skip_clean=False,
     skip_deformed=False,
     no_overwrite=False,
@@ -609,3 +611,108 @@ def generate_embeddings(
         ):
             feat = analysis.analyze(input_file)
             feat.save(output_file)
+
+    elif model_name == "mfcc":
+        import librosa
+
+        # Carregar parâmetros do arquivo de configuração
+        mfcc_params = config['feature_parameters']['mfcc']
+
+        n_mfcc = mfcc_params['n_mfcc']
+        n_mels = mfcc_params['n_mels']
+        fmin = mfcc_params['fmin']
+        fmax = mfcc_params['fmax']
+        dct_type = mfcc_params['dct_type']
+        norm = mfcc_params['norm']
+        window_size_ms = mfcc_params['window_size_ms']
+
+        # ✅ Ler max_frames da variável de ambiente, com fallback
+        max_frames = int(os.environ.get("MAX_FRAMES", 450))
+        print(f"[INFO] Valor de max_frames utilizado: {max_frames}")
+
+        audio_paths, emb_paths = get_input_output_paths(
+            dataset=dataset,
+            model_name=model_name,
+            skip_clean=skip_clean,
+            skip_deformed=skip_deformed,
+            no_overwrite=no_overwrite,
+            deform_list=deform_list,
+        )
+
+        for input_path, output_path in tqdm(zip(audio_paths, emb_paths), total=len(audio_paths)):
+            try:
+                # Carregar áudio para obter a taxa de amostragem
+                audio, sr = librosa.load(input_path, sr=None)
+                n_fft = round(sr * (window_size_ms / 1000))
+                hop_length = n_fft // 2
+
+                # Caminho absoluto do output original
+                output_path_abs = os.path.abspath(output_path)
+
+                # ✅ Corrigir base para caminho relativo a partir de "data/"
+                split_token = os.path.join("data", "")
+                if split_token not in output_path_abs:
+                    raise ValueError(f"Caminho de output inválido: {output_path_abs} não contém '/data/'")
+
+                relative_path = output_path_abs.split(split_token, 1)[1]
+
+                # Caminho final para MFCC completo
+                mfcc_full_base = os.path.expanduser("~/TCC/MIR_REF/mfccs_completos")
+                mfcc_full_path = os.path.join(mfcc_full_base, relative_path)
+
+                # print(f"[DEBUG] Caminho para MFCC completo: {mfcc_full_path}")
+
+                if os.path.exists(mfcc_full_path):
+                    # print(f"[DEBUG] MFCC completo já existe. Carregando...")
+                    mfcc_transposed = np.load(mfcc_full_path)
+                else:
+                    # print(f"[DEBUG] MFCC completo não encontrado. Extraindo e salvando...")
+
+                    # Normalizar áudio
+                    audio = librosa.util.normalize(audio)
+
+                    # Extrair MFCC
+                    mfcc = librosa.feature.mfcc(
+                        y=audio,
+                        sr=sr,
+                        n_mfcc=n_mfcc,
+                        n_fft=n_fft,
+                        hop_length=hop_length,
+                        n_mels=n_mels,
+                        fmin=fmin,
+                        fmax=fmax,
+                        dct_type=dct_type,
+                        norm=norm
+                    )
+
+                    # Normalizar MFCCs para [0,1]
+                    mfcc = (mfcc - mfcc.min()) / (mfcc.max() - mfcc.min())
+                    mfcc_transposed = mfcc.T
+
+                    # Salvar MFCC completo
+                    os.makedirs(os.path.dirname(mfcc_full_path), exist_ok=True)
+                    np.save(mfcc_full_path, mfcc_transposed)
+                    # print(f"[DEBUG] MFCC completo salvo em: {mfcc_full_path}")
+
+                num_frames = mfcc_transposed.shape[0]
+
+                # ✅ Aplicar limitação de frames
+                if num_frames > max_frames:
+                    indices = np.linspace(0, num_frames - 1, max_frames, dtype=int)
+                    mfcc_transposed = mfcc_transposed[indices]
+                elif num_frames < max_frames:
+                    padding = max_frames - num_frames
+                    mfcc_transposed = np.pad(mfcc_transposed, ((0, padding), (0, 0)), mode='constant', constant_values=0)
+
+                # Flatten MFCCs para salvar em vetor unidimensional
+                mfcc_flatten = mfcc_transposed.flatten()
+
+                # Criar diretório de saída se não existir
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+                # Salvar MFCC final
+                with open(output_path, "wb") as f:
+                    np.save(f, mfcc_flatten)
+
+            except Exception as e:
+                print(f"[ERRO] Erro ao processar {input_path}: {e}")
