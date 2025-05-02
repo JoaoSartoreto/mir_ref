@@ -627,7 +627,7 @@ def generate_embeddings(
         window_size_ms = mfcc_params['window_size_ms']
 
         # ✅ Ler max_frames da variável de ambiente, com fallback
-        max_frames = int(os.environ.get("MAX_FRAMES", 450))
+        max_frames = int(os.environ.get("MAX_FRAMES", 500))
         print(f"[INFO] Valor de max_frames utilizado: {max_frames}")
 
         audio_paths, emb_paths = get_input_output_paths(
