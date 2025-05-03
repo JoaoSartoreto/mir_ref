@@ -11,18 +11,18 @@ experiments:
         deformations:
           - - type: AddGaussianSNR
               params:
-                min_snr_in_db: 15
-                max_snr_in_db: 15
+                min_snr_db: 15
+                max_snr_db: 15
                 p: 1
           - - type: AddGaussianSNR
               params:
-                min_snr_in_db: 0
-                max_snr_in_db: 0
+                min_snr_db: 0
+                max_snr_db: 0
                 p: 1
           - - type: Gain
               params:
-                min_gain_in_db: -12
-                max_gain_in_db: -12
+                min_gain_db: -12
+                max_gain_db: -12
                 p: 1
     features:
       #- vggish-audioset
