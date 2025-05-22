@@ -2,10 +2,10 @@
 
 CONFIG_DIR="configs"
 BASE_LOG_DIR="results_mfcc_evaluate"
-REPETITIONS=10
+REPETITIONS=5
 
 # Lista de valores para MAX_FRAMES
-FRAME_VALUES=(1 2 4 5 7 10 15 20 25 30 40 50 100 150 250 350 500)
+FRAME_VALUES=(5 7 10 15 20 30 50 100 250 500)
 
 for MAX_FRAMES in "${FRAME_VALUES[@]}"; do
     export MAX_FRAMES
@@ -39,6 +39,8 @@ for MAX_FRAMES in "${FRAME_VALUES[@]}"; do
             echo ">>> Iniciando: $config_name" >> "$GERAL_LOG"
 
             start_time=$(date +%s)
+
+            export MFCC_CONFIG_NAME="$config_name"
 
             python run.py extract -c "$config_name"
             if [ $? -ne 0 ]; then
@@ -91,4 +93,3 @@ for MAX_FRAMES in "${FRAME_VALUES[@]}"; do
 done
 
 echo "Todos os experimentos foram executados com todos os valores de MAX_FRAMES!"
-
