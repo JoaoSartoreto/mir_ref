@@ -40,6 +40,7 @@ def generate(
             generate_embeddings(
                 dataset,
                 model_name=model_name,
+                config=exp_cfg,
                 skip_clean=skip_clean,
                 skip_deformed=skip_deformed,
                 no_overwrite=no_overwrite,
