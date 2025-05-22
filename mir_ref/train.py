@@ -16,6 +16,7 @@ from mir_ref.datasets.dataset import get_dataset
 from mir_ref.probes.probe_builder import get_model
 from mir_ref.utils import load_config
 
+import yaml
 
 def train(cfg_path, run_id=None):
     """Make a grid of all combinations of dataset, embedding models,
