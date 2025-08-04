@@ -25,19 +25,19 @@ experiments:
                 max_gain_db: -12
                 p: 1
     features:
-      #- vggish-audioset
+      - vggish-audioset
       #- clmr-v2
       #- mert-v1-95m-6
-      - mfcc
+      #- mfcc
     feature_parameters:
       mfcc:
-        n_mfcc: 16
+        n_mfcc: 13
         n_mels: 26
         fmin: 0
         fmax: 8000
         dct_type: 2
         norm: ortho
-        window_size_ms: 20  # Tamanho da janela em milissegundos
+        window_size_ms: 20 # Tamanho da janela em milissegundos
     probes:
       - type: classifier
         emb_dim_reduction: False
@@ -81,4 +81,4 @@ experiments:
         epochs: 100
         patience: 10
         train_sampling: random
-      
+
