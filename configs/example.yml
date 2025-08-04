@@ -37,7 +37,8 @@ experiments:
         fmax: 8000
         dct_type: 2
         norm: ortho
-        window_size_ms: 20  # Tamanho da janela em milissegundos
+        window_size_ms: 20 # Tamanho da janela em milissegundos
+        max_frames: 250
     probes:
       - type: classifier
         emb_dim_reduction: False
@@ -81,4 +82,3 @@ experiments:
         epochs: 100
         patience: 10
         train_sampling: random
-      
