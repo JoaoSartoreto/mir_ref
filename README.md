@@ -4,82 +4,120 @@
 
 Representation Evaluation Framework for Music Information Retrieval tasks | [Paper](https://arxiv.org/abs/2312.05994)
 
-`mir_ref` is an open-source library for evaluating audio representations (embeddings or others) on a variety of music-related downstream tasks and datasets. It has two main capabilities:
+`mir_ref` is an open-source library for evaluating audio representations (embeddings or others) on a variety of music-related downstream tasks and datasets.
 
-* Using a config file, you can specify all evaluation experiments you want to run. `mir_ref` will automatically acquire data and conduct the experiments - no coding or data handling needed. Many tasks, datasets, embedding models etc. are ready to use (see supported options section).
-* You can easily integrate your own features (e.g. embedding models), datasets, probes, metrics, and audio deformations and use them in `mir_ref` experiments.
+**This fork contains a fully integrated, optimized implementation of MFCC (Mel-Frequency Cepstral Coefficients) feature extraction, designed for scientific comparison with deep learning models.**  
+Branch maintained by [JoaoSartoreto](https://github.com/JoaoSartoreto), focused on Music Information Retrieval research and reproducibility for TCC/monography purposes.
 
-`mir_ref` builds upon existing reproducability efforts in music audio, including [`mirdata`](https://mirdata.readthedocs.io/en/stable/) for data handling, [`mir_eval`](https://craffel.github.io/mir_eval/) for evaluation metrics, and [`essentia models`](https://essentia.upf.edu/models.html) for pretrained audio models.
+---
 
-## Disclaimer
+## 🆕 What's new in this fork?
 
-A first beta release is expected by the end of April, and it includes many fixes and documentation improvements.
+- **MFCC extraction is now natively supported as a feature**:  
+  Just set `mfcc` as a feature in your config YAML.
+- **Flexible configuration**:  
+  All MFCC parameters (`n_mfcc`, `n_mels`, `fmin`, `fmax`, `dct_type`, `norm`, `window_size_ms`, `max_frames`) are loaded from the YAML config.
+- **Extraction fully integrated into the mir_ref pipeline**:  
+  MFCC embeddings are flattened to 1D vectors and saved as `.npy`, compatible with the rest of the pipeline (train/evaluate).
+- **Efficient frame handling**:  
+  Automatic frame trimming or zero-padding ensures every MFCC feature has a consistent shape for model input.
+- **No pre-saved full MFCC matrices**:  
+  The final implementation only saves the processed, fixed-size, flattened MFCC vector for each audio, not the full time-frequency matrix.
 
-## Setup
+---
 
-Clone the repository. Create and activate a python>3.9 environment and install the requirements.
+## Installation
 
-```
+Clone this repository, create and activate a Python >=3.9 environment, and install requirements:
+
+```sh
+git clone https://github.com/JoaoSartoreto/mir_ref.git
 cd mir_ref
 pip install -r requirements.txt
 ```
 
-## Running
+---
 
-To run the experiments specified in a config file `configs/example.yml` end-to-end:
+## MFCC Example Usage
 
+1. **Configure your experiment** in YAML, setting `mfcc` as the feature, and parameters as desired:
+
+```yaml
+experiments:
+  - task:
+      name: autotagging
+      type: multilabel_classification
+      feature_aggregation: mean
+    datasets:
+      - name: magnatagatune
+        type: custom
+        dir: data/magnatagatune/
+    features:
+      - mfcc
+    feature_parameters:
+      mfcc:
+        n_mfcc: 13
+        n_mels: 40
+        fmin: 20
+        fmax: 8000
+        dct_type: 2
+        norm: ortho
+        window_size_ms: 20
+        max_frames: 250
+    probes:
+      - type: classifier
+        emb_shape: infer
+        hidden_units: []
+        output_activation: sigmoid
+        optimizer: adam
+        learning_rate: 1.0e-3
+        batch_size: 1083
+        epochs: 100
+        patience: 10
 ```
-python run.py conduct -c example
+
+2. **Extract MFCC features**:
+
+```sh
+python run.py extract -c your_config.yml
 ```
 
-This will currently save deformations and features to use them later, but an online option will soon be available.
+3. **Train and evaluate** (after extracting features):
 
-Alternatively, `mir_ref` is comprised of 4 main functions-commands: `deform`, for generating deformations from a dataset; `extract`, for extracting features; `train`, for training probes; and `evaluate`, for evaluating them. These can be run as follows:
-
+```sh
+python run.py train -c your_config.yml
+python run.py evaluate -c your_config.yml
 ```
-python run.py COMMAND -c example
-```
 
-`deform` optionally includes the option `n_jobs` for specifying parallelization of deformation computation, and `extract` includes the flag `--no_overwrite` to skip recomputing existing features.
+---
 
-#### Configuration file
+## MFCC Extraction Details
 
-An example configuration file is provided. Config files are written in YAML. A list of experiments is expected at the top level, and each experiment contains a task, datasets, features, and probes. For each dataset, a list of deformation scenarios can be specified, following the argument syntax of [audiomentations](https://iver56.github.io/audiomentations/).
+- **Librosa** is used for MFCC extraction, and all parameters can be customized via YAML.
+- Each audio file is normalized, MFCCs are extracted and scaled to [0,1], time frames are either sub-sampled or padded, and the final MFCC matrix is flattened before saving.
+- Output shape for each MFCC vector is `(max_frames * n_mfcc,)` (1D numpy array).
 
-## Currently supported options
+---
 
-### Datasets and Tasks
+## Advanced
 
-* `magnatagatune`: MagnaTagATune (autotagging)
-* `mtg_jamendo`: MTG Jamendo (autotagging)
-* `vocalset`: VocalSet (singer_identification, technique_identification)
-* `tinysol`: TinySol (instrument_classification, pitch_class_classification)
-* `beaport`: Beatport (key_estimation)
+You can combine MFCCs with other features, test different configurations, and use all the functionalities of `mir_ref` as described in the [original README](https://github.com/filiperochalopes/mir_ref).
 
-~Many more soon
+---
 
-### Features
+## Disclaimer
 
-* `effnet-discogs`
-* `vggish-audioset`
-* `msd-musicnn`
-* `openl3`
-* `neuralfp`
-* `clmr-v2`
-* `mert-v1-95m-6` / `mert-v1-95m-0-1-2-3` / `mert-v1-95m-4-5-6-7-8` / `mert-v1-95m-9-10-11-12`  (referring to the layers used)
-* `maest`
+This fork is experimental and focuses on **research and reproducibility** for TCC/academic purposes.  
+If you use or adapt this implementation, please **cite the original paper** and, if relevant, this fork.  
+Feel free to open issues or pull requests!
 
-~More soon
-
-## Example results
-
-We conducted an example evaluation of 7 models in 6 tasks with 4 deformations and 5 different probing setups. For the full results, please refer to the 'Evaluation' chapter of [this thesis document](https://zenodo.org/records/8380471), pages 39-58.
+---
 
 ## Citing
 
 If you use `mir_ref`, please cite the following [paper](https://arxiv.org/abs/2312.05994):
 
-```
+```bibtex
 @inproceedings{mir_ref,
     author = {Christos Plachouras and Pablo Alonso-Jim\'enez and Dmitry Bogdanov},
     title = {mir_ref: A Representation Evaluation Framework for Music Information Retrieval Tasks},
@@ -88,3 +126,4 @@ If you use `mir_ref`, please cite the following [paper](https://arxiv.org/abs/23
     year = 2023,
 }
 ```
+
