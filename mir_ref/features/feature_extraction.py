@@ -615,27 +615,19 @@ def generate_embeddings(
     elif model_name == "mfcc":
         import librosa
 
-        # Carregar parâmetros do arquivo de configuração
+        # Load MFCC extraction parameters from configuration
         mfcc_params = config['feature_parameters']['mfcc']
 
         n_mfcc = mfcc_params['n_mfcc']
         n_mels = mfcc_params['n_mels']
         fmin = mfcc_params['fmin']
-        fmax = mfcc_params['fmax']
+        fmax = mfcc_params['fmax']  # Always use the value from config file
         dct_type = mfcc_params['dct_type']
         norm = mfcc_params['norm']
         window_size_ms = mfcc_params['window_size_ms']
+        max_frames = mfcc_params['max_frames']  # Maximum allowed frames for each audio
 
-        # Nome da configuração vindo do bash (sem extensão .yml)
-        config_name = os.environ.get("MFCC_CONFIG_NAME", "default_config")
-        config_name = os.path.splitext(os.path.basename(config_name))[0]
-
-        # max_frames vindo do ambiente
-        max_frames = int(os.environ.get("MAX_FRAMES", 450))
-        print(f"[INFO] max_frames: {max_frames}")
-        print(f"[INFO] config: {config_name}")
-
-        # Obter caminhos de entrada e saída
+        # Get input (audio) and output (embedding) paths for this run
         audio_paths, emb_paths = get_input_output_paths(
             dataset=dataset,
             model_name=model_name,
@@ -647,67 +639,56 @@ def generate_embeddings(
 
         for input_path, output_path in tqdm(zip(audio_paths, emb_paths), total=len(audio_paths)):
             try:
-                # Carregar o áudio
+                # Load audio with original sample rate
                 audio, sr = librosa.load(input_path, sr=None)
-                n_fft = round(sr * (window_size_ms / 1000))
-                hop_length = n_fft // 2
 
-                # Caminho absoluto do output_path
-                output_path_abs = os.path.abspath(output_path)
+                # Calculate n_fft and hop_length based on the sample rate and window size (ms)
+                n_fft = round(sr * (window_size_ms / 1000))  # Window size in samples
+                hop_length = n_fft // 2  # Always 50% overlap
 
-                # Extrair o caminho relativo a partir de mir_ref/data ou data
-                if "/mir_ref/data/" in output_path_abs:
-                    relative_path = output_path_abs.split("/mir_ref/data/")[-1]
-                elif "/data/" in output_path_abs:
-                    relative_path = output_path_abs.split("/data/")[-1]
-                else:
-                    raise RuntimeError(f"[ERRO] output_path fora de mir_ref/data ou data: {output_path_abs}")
+                # Normalize audio amplitude to unit norm
+                audio = librosa.util.normalize(audio)
 
-                # Caminho final para salvar o MFCC completo
-                mfcc_full_path = os.path.join(
-                    os.path.expanduser(f"~/TCC/MIR_REF/mfccs_completos/{config_name}"),
-                    relative_path
+                # Extract MFCCs
+                mfcc = librosa.feature.mfcc(
+                    y=audio,
+                    sr=sr,
+                    n_mfcc=n_mfcc,
+                    n_fft=n_fft,
+                    hop_length=hop_length,
+                    n_mels=n_mels,
+                    fmin=fmin,
+                    fmax=fmax,
+                    dct_type=dct_type,
+                    norm=norm
                 )
 
-                # Se já existe MFCC completo salvo, carrega
-                if os.path.exists(mfcc_full_path):
-                    mfcc_transposed = np.load(mfcc_full_path)
-                else:
-                    # Extrai e normaliza MFCC completo
-                    audio = librosa.util.normalize(audio)
-                    mfcc = librosa.feature.mfcc(
-                        y=audio,
-                        sr=sr,
-                        n_mfcc=n_mfcc,
-                        n_fft=n_fft,
-                        hop_length=hop_length,
-                        n_mels=n_mels,
-                        fmin=fmin,
-                        fmax=fmax,
-                        dct_type=dct_type,
-                        norm=norm
-                    )
-                    mfcc = (mfcc - mfcc.min()) / (mfcc.max() - mfcc.min())
-                    mfcc_transposed = mfcc.T
+                # Normalize MFCCs to the [0, 1] range
+                mfcc = (mfcc - mfcc.min()) / (mfcc.max() - mfcc.min())
 
-                    # Salva o MFCC completo
-                    os.makedirs(os.path.dirname(mfcc_full_path), exist_ok=True)
-                    np.save(mfcc_full_path, mfcc_transposed)
-
-                # Reduzir ou preencher frames
+                # Transpose to shape (n_frames, n_mfcc)
+                mfcc_transposed = mfcc.T
                 num_frames = mfcc_transposed.shape[0]
+
+                # Ensure the feature has exactly `max_frames` frames
                 if num_frames > max_frames:
+                    # Select `max_frames` frames, evenly distributed along the sequence
                     indices = np.linspace(0, num_frames - 1, max_frames, dtype=int)
                     mfcc_transposed = mfcc_transposed[indices]
                 elif num_frames < max_frames:
+                    # Pad with zeros if there are fewer than `max_frames` frames
                     padding = max_frames - num_frames
                     mfcc_transposed = np.pad(mfcc_transposed, ((0, padding), (0, 0)), mode='constant', constant_values=0)
 
-                # Flatten e salvar MFCC final para treinamento
+                # Flatten to a 1D vector (as required by the mir_ref pipeline)
                 mfcc_flatten = mfcc_transposed.flatten()
+
+                # Create output directory if it does not exist
                 os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+                # Save the flattened MFCC as a .npy file (ready for training/evaluation)
                 with open(output_path, "wb") as f:
                     np.save(f, mfcc_flatten)
 
             except Exception as e:
-                print(f"[ERRO] ao processar {input_path}: {e}")
+                print(f"[ERROR] Failed to process {input_path}: {e}")
